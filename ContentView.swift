@@ -136,9 +136,7 @@ struct ContentView: View {
                     .foregroundColor(.cyan)
                 
                 TextField("https://example.com/file.zip", text: $urlString)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .textContentType(.URL)
+                    .disableAutocorrection(true)
                     .foregroundColor(.white)
                 
                 if !urlString.isEmpty {
@@ -461,7 +459,7 @@ struct DownloadedFileRow: View {
         .background(Color.white.opacity(0.05))
         .cornerRadius(10)
         .sheet(isPresented: $showShareSheet) {
-            ShareSheet(items: [file.url])
+            ShareSheetView(items: [file.url])
         }
     }
     
@@ -470,16 +468,36 @@ struct DownloadedFileRow: View {
     }
 }
 
-// MARK: - Share Sheet
-struct ShareSheet: UIViewControllerRepresentable {
+// MARK: - Share Sheet View
+struct ShareSheetView: View {
     let items: [URL]
+    @Environment(\.dismiss) var dismiss
     
-    func makeUIViewController(context: UIViewControllerRepresentableContext<ShareSheet>) -> UIActivityViewController {
+    var body: some View {
+        #if os(iOS)
+        return AnyView(ShareSheetController(items: items))
+        #else
+        return AnyView(Text("Share not available on this platform"))
+        #endif
+    }
+}
+
+// MARK: - Share Sheet Controller
+#if os(iOS)
+import UIKit
+
+struct ShareSheetController: UIViewControllerRepresentable {
+    let items: [URL]
+    @Environment(\.presentationMode) var presentationMode
+    
+    func makeUIViewController(context: UIViewControllerRepresentableContext<ShareSheetController>) -> UIActivityViewController {
         return UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
     
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: UIViewControllerRepresentableContext<ShareSheet>) {}
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: UIViewControllerRepresentableContext<ShareSheetController>) {
+    }
 }
+#endif
 
 // MARK: - Utility Functions
 func getFileName(from url: URL, response: HTTPURLResponse?) -> String {

@@ -1,6 +1,7 @@
 import SwiftUI
 import Foundation
 import UniformTypeIdentifiers
+import UIKit
 
 struct ContentView: View {
     @State private var urlString = ""
@@ -30,166 +31,23 @@ struct ContentView: View {
             
             VStack(spacing: 0) {
                 // Header
-                VStack(spacing: 12) {
-                    HStack {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(.cyan)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("UniDownloader")
-                                .font(.system(size: 26, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Scarica qualunque contenuto dal web")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        
-                        Spacer()
-                    }
-                    .padding()
-                    
-                    Divider()
-                        .background(Color.gray.opacity(0.3))
-                }
-                .background(Color.black.opacity(0.3))
+                headerView
                 
                 // Main Content
                 ScrollView {
                     VStack(spacing: 20) {
                         // URL Input Section
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("Inserisci URL", systemImage: "link")
-                                .font(.system(.headline, design: .rounded))
-                                .foregroundColor(.white)
-                            
-                            HStack {
-                                Image(systemName: "globe")
-                                    .foregroundColor(.cyan)
-                                
-                                TextField("https://example.com/file.zip", text: $urlString)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                                    .textContentType(.URL)
-                                    .foregroundColor(.white)
-                                
-                                if !urlString.isEmpty {
-                                    Button(action: { urlString = "" }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                            }
-                            .padding(12)
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 20)
+                        urlInputSection
                         
                         // Download Button
-                        Button(action: startDownload) {
-                            if isDownloading {
-                                HStack(spacing: 12) {
-                                    ProgressView(value: downloadProgress)
-                                        .tint(.cyan)
-                                        .frame(width: 60)
-                                    
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Scaricamento in corso...")
-                                            .font(.system(.body, design: .rounded))
-                                        Text("\(Int(downloadProgress * 100))%")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                    }
-                                    
-                                    Spacer()
-                                }
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                            } else {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "arrow.down.circle.fill")
-                                    Text("Scarica")
-                                        .font(.system(.body, design: .rounded))
-                                        .fontWeight(.semibold)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                            }
-                        }
-                        .foregroundColor(.white)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.cyan,
-                                    Color.blue
-                                ]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(12)
-                        .padding(.horizontal)
-                        .disabled(urlString.isEmpty || isDownloading)
-                        .opacity(urlString.isEmpty || isDownloading ? 0.6 : 1.0)
+                        downloadButton
                         
                         // Info Section
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("Tipi di file supportati", systemImage: "doc.badge.gearshape")
-                                .font(.system(.headline, design: .rounded))
-                                .foregroundColor(.white)
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                FileTypeTag("📄 Documenti", "PDF, DOCX, TXT, XLS")
-                                FileTypeTag("🎵 Audio", "MP3, WAV, M4A, AAC")
-                                FileTypeTag("🎬 Video", "MP4, MOV, AVI, MKV")
-                                FileTypeTag("🖼️ Immagini", "JPG, PNG, GIF, WEBP")
-                                FileTypeTag("📦 Archivi", "ZIP, RAR, 7Z, TAR")
-                                FileTypeTag("💾 Software", "APK, APP, EXE, DMG")
-                            }
-                        }
-                        .padding()
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(12)
-                        .padding(.horizontal)
+                        infoSection
                         
                         // Downloaded Files Section
                         if !downloadedFiles.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    Label("File Scaricati", systemImage: "folder.fill")
-                                        .font(.system(.headline, design: .rounded))
-                                        .foregroundColor(.white)
-                                    
-                                    Spacer()
-                                    
-                                    Text("\(downloadedFiles.count)")
-                                        .font(.caption)
-                                        .foregroundColor(.cyan)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color.cyan.opacity(0.2))
-                                        .cornerRadius(6)
-                                }
-                                
-                                VStack(spacing: 10) {
-                                    ForEach(downloadedFiles, id: \.id) { file in
-                                        DownloadedFileRow(file: file)
-                                            .onTapGesture {
-                                                selectedFile = file
-                                            }
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(12)
-                            .padding(.horizontal)
+                            downloadedFilesSection
                         }
                         
                         Spacer()
@@ -240,6 +98,200 @@ struct ContentView: View {
         }
     }
     
+    // MARK: - Header View
+    private var headerView: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundColor(.cyan)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("UniDownloader")
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundColor(.white)
+                    Text("Scarica qualunque contenuto dal web")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+            }
+            .padding()
+            
+            Divider()
+                .background(Color.gray.opacity(0.3))
+        }
+        .background(Color.black.opacity(0.3))
+    }
+    
+    // MARK: - URL Input Section
+    private var urlInputSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Inserisci URL", systemImage: "link")
+                .font(.system(.headline, design: .rounded))
+                .foregroundColor(.white)
+            
+            HStack {
+                Image(systemName: "globe")
+                    .foregroundColor(.cyan)
+                
+                TextField("https://example.com/file.zip", text: $urlString)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textContentType(.URL)
+                    .foregroundColor(.white)
+                
+                if !urlString.isEmpty {
+                    Button(action: { urlString = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color.white.opacity(0.1))
+            .cornerRadius(10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .padding(.horizontal)
+        .padding(.top, 20)
+    }
+    
+    // MARK: - Download Button
+    private var downloadButton: some View {
+        Button(action: startDownload) {
+            if isDownloading {
+                HStack(spacing: 12) {
+                    ProgressView(value: downloadProgress)
+                        .tint(.cyan)
+                        .frame(width: 60)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Scaricamento in corso...")
+                            .font(.system(.body, design: .rounded))
+                        Text("\(Int(downloadProgress * 100))%")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Spacer()
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+            } else {
+                HStack(spacing: 12) {
+                    Image(systemName: "arrow.down.circle.fill")
+                    Text("Scarica")
+                        .font(.system(.body, design: .rounded))
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+            }
+        }
+        .foregroundColor(.white)
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.cyan,
+                    Color.blue
+                ]),
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .cornerRadius(12)
+        .padding(.horizontal)
+        .disabled(urlString.isEmpty || isDownloading)
+        .opacity(urlString.isEmpty || isDownloading ? 0.6 : 1.0)
+    }
+    
+    // MARK: - Info Section
+    private var infoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Tipi di file supportati", systemImage: "doc.badge.gearshape")
+                .font(.system(.headline, design: .rounded))
+                .foregroundColor(.white)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                fileTypeTagView("📄", "Documenti", "PDF, DOCX, TXT, XLS")
+                fileTypeTagView("🎵", "Audio", "MP3, WAV, M4A, AAC")
+                fileTypeTagView("🎬", "Video", "MP4, MOV, AVI, MKV")
+                fileTypeTagView("🖼️", "Immagini", "JPG, PNG, GIF, WEBP")
+                fileTypeTagView("📦", "Archivi", "ZIP, RAR, 7Z, TAR")
+                fileTypeTagView("💾", "Software", "APK, APP, EXE, DMG")
+            }
+        }
+        .padding()
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+    
+    // MARK: - Downloaded Files Section
+    private var downloadedFilesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("File Scaricati", systemImage: "folder.fill")
+                    .font(.system(.headline, design: .rounded))
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                Text("\(downloadedFiles.count)")
+                    .font(.caption)
+                    .foregroundColor(.cyan)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.cyan.opacity(0.2))
+                    .cornerRadius(6)
+            }
+            
+            VStack(spacing: 10) {
+                ForEach(downloadedFiles, id: \.id) { file in
+                    DownloadedFileRow(file: file)
+                        .onTapGesture {
+                            selectedFile = file
+                        }
+                }
+            }
+        }
+        .padding()
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+    
+    // MARK: - Helper View
+    private func fileTypeTagView(_ emoji: String, _ title: String, _ types: String) -> some View {
+        HStack(spacing: 10) {
+            Text(emoji)
+                .font(.system(size: 16))
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(.caption, design: .rounded))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.cyan)
+                
+                Text(types)
+                    .font(.caption2)
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .background(Color.cyan.opacity(0.1))
+        .cornerRadius(8)
+    }
+    
+    // MARK: - Methods
     private func startDownload() {
         guard let url = URL(string: urlString) else {
             showAlert(title: "URL Non Valido", message: "Inserisci un URL valido")
@@ -300,8 +352,6 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
     }
     
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        guard let url = downloadTask.currentRequest?.url else { return }
-        
         if totalBytesExpectedToWrite > 0 {
             let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
             delegate?.downloadDidProgress(progress: progress)
@@ -361,41 +411,7 @@ struct DownloadedFile: Identifiable {
     let url: URL
 }
 
-// MARK: - Helper Views
-struct FileTypeTag: View {
-    let emoji: String
-    let types: String
-    
-    init(_ emoji: String, _ types: String) {
-        self.emoji = emoji
-        self.types = types
-    }
-    
-    var body: some View {
-        HStack(spacing: 10) {
-            Text(emoji)
-                .font(.system(size: 16))
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(emoji.split(separator: " ")[1])
-                    .font(.system(.caption, design: .rounded))
-                    .fontWeight(.semibold)
-                    .foregroundColor(.cyan)
-                
-                Text(types)
-                    .font(.caption2)
-                    .foregroundColor(.gray)
-            }
-            
-            Spacer()
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
-        .background(Color.cyan.opacity(0.1))
-        .cornerRadius(8)
-    }
-}
-
+// MARK: - Downloaded File Row
 struct DownloadedFileRow: View {
     let file: DownloadedFile
     @State private var showShareSheet = false
@@ -459,11 +475,11 @@ struct DownloadedFileRow: View {
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [URL]
     
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    func makeUIViewController(context: UIViewControllerRepresentableContext<ShareSheet>) -> UIActivityViewController {
+        return UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
     
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: UIViewControllerRepresentableContext<ShareSheet>) {}
 }
 
 // MARK: - Utility Functions
@@ -490,7 +506,7 @@ func getFileSize(_ url: URL) -> String {
             formatter.countStyle = .file
             return formatter.string(fromByteCount: size.int64Value)
         }
-    } catch {}
+    } catch { }
     return "N/A"
 }
 

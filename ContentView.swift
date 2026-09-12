@@ -2,6 +2,10 @@ import SwiftUI
 import Foundation
 import UniformTypeIdentifiers
 
+#if os(iOS)
+import UIKit
+#endif
+
 struct ContentView: View {
     @State private var urlString = ""
     @State private var isDownloading = false
@@ -11,13 +15,10 @@ struct ContentView: View {
     @State private var showAlert = false
     @State private var alertMessage = ""
     @State private var alertTitle = ""
-    @State private var showDocumentPicker = false
-    @State private var currentDownloadURL: URL?
     @State private var downloadManager: DownloadManager?
     
     var body: some View {
         ZStack {
-            // Background gradient
             LinearGradient(
                 gradient: Gradient(colors: [
                     Color(red: 0.1, green: 0.15, blue: 0.3),
@@ -29,22 +30,14 @@ struct ContentView: View {
             .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Header
                 headerView
                 
-                // Main Content
                 ScrollView {
                     VStack(spacing: 20) {
-                        // URL Input Section
                         urlInputSection
-                        
-                        // Download Button
                         downloadButton
-                        
-                        // Info Section
                         infoSection
                         
-                        // Downloaded Files Section
                         if !downloadedFiles.isEmpty {
                             downloadedFilesSection
                         }
@@ -61,43 +54,46 @@ struct ContentView: View {
             Text(alertMessage)
         }
         .onAppear {
-            if downloadManager == nil {
-                downloadManager = DownloadManager()
-                downloadManager?.delegate = DownloadViewDelegate(
-                    onProgress: { progress in
-                        DispatchQueue.main.async {
-                            self.downloadProgress = progress
-                        }
-                    },
-                    onCompletion: { url, fileName in
-                        DispatchQueue.main.async {
-                            let newFile = DownloadedFile(
-                                id: UUID(),
-                                name: fileName,
-                                size: getFileSize(url),
-                                date: Date(),
-                                url: url
-                            )
-                            self.downloadedFiles.insert(newFile, at: 0)
-                            self.isDownloading = false
-                            self.downloadProgress = 0
-                            self.urlString = ""
-                            self.showAlert(title: "Successo", message: "File scaricato correttamente!")
-                        }
-                    },
-                    onError: { error in
-                        DispatchQueue.main.async {
-                            self.isDownloading = false
-                            self.downloadProgress = 0
-                            self.showAlert(title: "Errore", message: error)
-                        }
-                    }
-                )
-            }
+            setupDownloadManager()
         }
     }
     
-    // MARK: - Header View
+    private func setupDownloadManager() {
+        if downloadManager == nil {
+            downloadManager = DownloadManager()
+            downloadManager?.delegate = DownloadViewDelegate(
+                onProgress: { progress in
+                    DispatchQueue.main.async {
+                        self.downloadProgress = progress
+                    }
+                },
+                onCompletion: { url, fileName in
+                    DispatchQueue.main.async {
+                        let newFile = DownloadedFile(
+                            id: UUID(),
+                            name: fileName,
+                            size: getFileSize(url),
+                            date: Date(),
+                            url: url
+                        )
+                        self.downloadedFiles.insert(newFile, at: 0)
+                        self.isDownloading = false
+                        self.downloadProgress = 0
+                        self.urlString = ""
+                        self.showAlert(title: "Successo", message: "File scaricato correttamente!")
+                    }
+                },
+                onError: { error in
+                    DispatchQueue.main.async {
+                        self.isDownloading = false
+                        self.downloadProgress = 0
+                        self.showAlert(title: "Errore", message: error)
+                    }
+                }
+            )
+        }
+    }
+    
     private var headerView: some View {
         VStack(spacing: 12) {
             HStack {
@@ -124,7 +120,6 @@ struct ContentView: View {
         .background(Color.black.opacity(0.3))
     }
     
-    // MARK: - URL Input Section
     private var urlInputSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Inserisci URL", systemImage: "link")
@@ -158,9 +153,10 @@ struct ContentView: View {
         .padding(.top, 20)
     }
     
-    // MARK: - Download Button
     private var downloadButton: some View {
-        Button(action: startDownload) {
+        Button(action: {
+            startDownload()
+        }) {
             if isDownloading {
                 HStack(spacing: 12) {
                     ProgressView(value: downloadProgress)
@@ -207,7 +203,6 @@ struct ContentView: View {
         .opacity(urlString.isEmpty || isDownloading ? 0.6 : 1.0)
     }
     
-    // MARK: - Info Section
     private var infoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Tipi di file supportati", systemImage: "doc.badge.gearshape")
@@ -229,7 +224,6 @@ struct ContentView: View {
         .padding(.horizontal)
     }
     
-    // MARK: - Downloaded Files Section
     private var downloadedFilesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -250,10 +244,9 @@ struct ContentView: View {
             
             VStack(spacing: 10) {
                 ForEach(downloadedFiles, id: \.id) { file in
-                    DownloadedFileRow(file: file)
-                        .onTapGesture {
-                            selectedFile = file
-                        }
+                    DownloadedFileRow(file: file, onDelete: {
+                        downloadedFiles.removeAll { $0.id == file.id }
+                    })
                 }
             }
         }
@@ -263,7 +256,6 @@ struct ContentView: View {
         .padding(.horizontal)
     }
     
-    // MARK: - Helper View
     private func fileTypeTagView(_ emoji: String, _ title: String, _ types: String) -> some View {
         HStack(spacing: 10) {
             Text(emoji)
@@ -288,15 +280,24 @@ struct ContentView: View {
         .cornerRadius(8)
     }
     
-    // MARK: - Methods
     private func startDownload() {
+        guard !urlString.isEmpty else {
+            showAlert(title: "Errore", message: "Inserisci un URL")
+            return
+        }
+        
         guard let url = URL(string: urlString) else {
-            showAlert(title: "URL Non Valido", message: "Inserisci un URL valido")
+            showAlert(title: "URL Non Valido", message: "Inserisci un URL valido (es: https://...)")
             return
         }
         
         isDownloading = true
         downloadProgress = 0
+        
+        if downloadManager == nil {
+            setupDownloadManager()
+        }
+        
         downloadManager?.download(from: url)
     }
     
@@ -317,19 +318,27 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         super.init()
         let config = URLSessionConfiguration.background(withIdentifier: "com.unidownloader.background")
         config.waitsForConnectivity = true
+        config.shouldUseExtendedBackgroundIdleMode = true
         session = URLSession(configuration: config, delegate: self, delegateQueue: OperationQueue.main)
     }
     
     func download(from url: URL) {
+        print("🔄 Inizio download da: \(url.absoluteString)")
         let downloadTask = session?.downloadTask(with: url)
         let download = Download(url: url)
         activeDownloads[url.absoluteString] = download
         downloadTask?.resume()
+        print("✅ Download task avviato")
     }
     
-    // MARK: - URLSessionDownloadDelegate
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let url = downloadTask.currentRequest?.url else { return }
+        guard let url = downloadTask.currentRequest?.url else {
+            print("❌ Errore: URL non trovato")
+            delegate?.downloadDidFail(error: "Errore: URL non trovato")
+            return
+        }
+        
+        print("✅ Download completato da: \(url.absoluteString)")
         
         let fileName = getFileName(from: url, response: downloadTask.response as? HTTPURLResponse)
         let fileManager = FileManager.default
@@ -342,8 +351,10 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
             }
             try fileManager.moveItem(at: location, to: destinationURL)
             activeDownloads.removeValue(forKey: url.absoluteString)
+            print("💾 File salvato in: \(destinationURL.path)")
             delegate?.downloadDidFinish(fileURL: destinationURL, fileName: fileName)
         } catch {
+            print("❌ Errore nel salvataggio: \(error)")
             delegate?.downloadDidFail(error: "Errore nel salvataggio del file: \(error.localizedDescription)")
         }
     }
@@ -351,12 +362,14 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         if totalBytesExpectedToWrite > 0 {
             let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+            print("📊 Progresso: \(Int(progress * 100))%")
             delegate?.downloadDidProgress(progress: progress)
         }
     }
     
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let error = error else { return }
+        print("❌ Errore download: \(error.localizedDescription)")
         delegate?.downloadDidFail(error: error.localizedDescription)
     }
 }
@@ -411,6 +424,7 @@ struct DownloadedFile: Identifiable {
 // MARK: - Downloaded File Row
 struct DownloadedFileRow: View {
     let file: DownloadedFile
+    let onDelete: () -> Void
     @State private var showShareSheet = false
     
     var body: some View {
@@ -445,7 +459,7 @@ struct DownloadedFileRow: View {
                     Label("Condividi", systemImage: "square.and.arrow.up")
                 }
                 
-                Button(action: deleteFile) {
+                Button(action: onDelete) {
                     Label("Elimina", systemImage: "trash")
                         .foregroundColor(.red)
                 }
@@ -459,39 +473,25 @@ struct DownloadedFileRow: View {
         .background(Color.white.opacity(0.05))
         .cornerRadius(10)
         .sheet(isPresented: $showShareSheet) {
-            ShareSheetView(items: [file.url])
+            #if os(iOS)
+            ShareSheetController(items: [file.url])
+            #endif
         }
     }
-    
-    private func deleteFile() {
-        try? FileManager.default.removeItem(at: file.url)
-    }
 }
 
-// MARK: - Share Sheet View
-struct ShareSheetView: View {
-    let items: [URL]
-    @Environment(\.dismiss) var dismiss
-    
-    var body: some View {
-        #if os(iOS)
-        return AnyView(ShareSheetController(items: items))
-        #else
-        return AnyView(Text("Share not available on this platform"))
-        #endif
-    }
-}
-
-// MARK: - Share Sheet Controller
+// MARK: - Share Sheet
 #if os(iOS)
-import UIKit
-
 struct ShareSheetController: UIViewControllerRepresentable {
     let items: [URL]
     @Environment(\.presentationMode) var presentationMode
     
     func makeUIViewController(context: UIViewControllerRepresentableContext<ShareSheetController>) -> UIActivityViewController {
-        return UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, _, _, _ in
+            presentationMode.wrappedValue.dismiss()
+        }
+        return controller
     }
     
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: UIViewControllerRepresentableContext<ShareSheetController>) {

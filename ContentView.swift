@@ -55,6 +55,7 @@ struct ContentView: View {
         }
         .onAppear {
             setupDownloadManager()
+            loadDownloadedFiles()
         }
     }
     
@@ -81,6 +82,7 @@ struct ContentView: View {
                         self.downloadProgress = 0
                         self.urlString = ""
                         self.showAlert(title: "Successo", message: "File scaricato correttamente!")
+                        self.loadDownloadedFiles()
                     }
                 },
                 onError: { error in
@@ -91,6 +93,38 @@ struct ContentView: View {
                     }
                 }
             )
+        }
+    }
+    
+    private func loadDownloadedFiles() {
+        let fileManager = FileManager.default
+        guard let downloadsURL = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
+            print("❌ Impossibile accedere a Downloads")
+            return
+        }
+        
+        do {
+            let files = try fileManager.contentsOfDirectory(at: downloadsURL, includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey])
+            
+            var downloadedFilesList: [DownloadedFile] = []
+            for fileURL in files {
+                let attributes = try fileManager.attributesOfItem(atPath: fileURL.path)
+                let size = getFileSize(fileURL)
+                let date = attributes[.modificationDate] as? Date ?? Date()
+                
+                let file = DownloadedFile(
+                    id: UUID(),
+                    name: fileURL.lastPathComponent,
+                    size: size,
+                    date: date,
+                    url: fileURL
+                )
+                downloadedFilesList.append(file)
+            }
+            
+            self.downloadedFiles = downloadedFilesList.sorted { $0.date > $1.date }
+        } catch {
+            print("❌ Errore nel caricamento file: \(error)")
         }
     }
     
@@ -245,7 +279,7 @@ struct ContentView: View {
             VStack(spacing: 10) {
                 ForEach(downloadedFiles, id: \.id) { file in
                     DownloadedFileRow(file: file, onDelete: {
-                        downloadedFiles.removeAll { $0.id == file.id }
+                        deleteFile(file)
                     })
                 }
             }
@@ -291,6 +325,8 @@ struct ContentView: View {
             return
         }
         
+        print("🚀 Avvio download per: \(urlString)")
+        
         isDownloading = true
         downloadProgress = 0
         
@@ -299,6 +335,16 @@ struct ContentView: View {
         }
         
         downloadManager?.download(from: url)
+    }
+    
+    private func deleteFile(_ file: DownloadedFile) {
+        do {
+            try FileManager.default.removeItem(at: file.url)
+            downloadedFiles.removeAll { $0.id == file.id }
+            showAlert(title: "Successo", message: "File eliminato")
+        } catch {
+            showAlert(title: "Errore", message: "Impossibile eliminare il file")
+        }
     }
     
     private func showAlert(title: String, message: String) {
@@ -341,17 +387,32 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         
         let fileName = getFileName(from: url, response: downloadTask.response as? HTTPURLResponse)
         let fileManager = FileManager.default
-        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let destinationURL = documentsURL.appendingPathComponent(fileName)
+        
+        // Salva in Downloads
+        guard let downloadsURL = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
+            print("❌ Errore: Impossibile accedere a Downloads")
+            delegate?.downloadDidFail(error: "Errore: Impossibile accedere a Downloads")
+            return
+        }
+        
+        let destinationURL = downloadsURL.appendingPathComponent(fileName)
         
         do {
-            if fileManager.fileExists(atPath: destinationURL.path) {
-                try fileManager.removeItem(at: destinationURL)
+            // Se il file esiste, aggiungi un numero al nome
+            var finalURL = destinationURL
+            var counter = 1
+            while fileManager.fileExists(atPath: finalURL.path) {
+                let nameWithoutExt = (fileName as NSString).deletingPathExtension
+                let ext = (fileName as NSString).pathExtension
+                let newFileName = ext.isEmpty ? "\(nameWithoutExt)_\(counter)" : "\(nameWithoutExt)_\(counter).\(ext)"
+                finalURL = downloadsURL.appendingPathComponent(newFileName)
+                counter += 1
             }
-            try fileManager.moveItem(at: location, to: destinationURL)
+            
+            try fileManager.moveItem(at: location, to: finalURL)
             activeDownloads.removeValue(forKey: url.absoluteString)
-            print("💾 File salvato in: \(destinationURL.path)")
-            delegate?.downloadDidFinish(fileURL: destinationURL, fileName: fileName)
+            print("💾 File salvato in: \(finalURL.path)")
+            delegate?.downloadDidFinish(fileURL: finalURL, fileName: finalURL.lastPathComponent)
         } catch {
             print("❌ Errore nel salvataggio: \(error)")
             delegate?.downloadDidFail(error: "Errore nel salvataggio del file: \(error.localizedDescription)")

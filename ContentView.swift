@@ -318,7 +318,6 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         super.init()
         let config = URLSessionConfiguration.background(withIdentifier: "com.unidownloader.background")
         config.waitsForConnectivity = true
-        config.shouldUseExtendedBackgroundIdleMode = true
         session = URLSession(configuration: config, delegate: self, delegateQueue: OperationQueue.main)
     }
     

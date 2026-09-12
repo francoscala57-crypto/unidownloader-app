@@ -35,7 +35,67 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         urlInputSection
-                        downloadButton
+                        
+                        VStack(spacing: 12) {
+                            if isDownloading {
+                                HStack(spacing: 12) {
+                                    ProgressView(value: downloadProgress)
+                                        .tint(.cyan)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Scaricamento in corso...")
+                                            .font(.system(.body, design: .rounded))
+                                        Text("\(Int(downloadProgress * 100))%")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                }
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            Color.cyan.opacity(0.5),
+                                            Color.blue.opacity(0.5)
+                                        ]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .cornerRadius(12)
+                                .padding(.horizontal)
+                            } else {
+                                Button(action: {
+                                    print("🔵 Pulsante premuto!")
+                                    startDownload()
+                                }) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "arrow.down.circle.fill")
+                                        Text("Scarica")
+                                            .font(.system(.body, design: .rounded))
+                                            .fontWeight(.semibold)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .foregroundColor(.white)
+                                    .background(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color.cyan,
+                                                Color.blue
+                                            ]),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .cornerRadius(12)
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+                        
                         infoSection
                         
                         if !downloadedFiles.isEmpty {
@@ -54,6 +114,7 @@ struct ContentView: View {
             Text(alertMessage)
         }
         .onAppear {
+            print("📱 App aperta")
             setupDownloadManager()
             loadDownloadedFiles()
         }
@@ -61,14 +122,17 @@ struct ContentView: View {
     
     private func setupDownloadManager() {
         if downloadManager == nil {
+            print("⚙️ Setup DownloadManager")
             downloadManager = DownloadManager()
             downloadManager?.delegate = DownloadViewDelegate(
                 onProgress: { progress in
+                    print("📊 Progress callback: \(progress)")
                     DispatchQueue.main.async {
                         self.downloadProgress = progress
                     }
                 },
                 onCompletion: { url, fileName in
+                    print("✅ Download completato: \(fileName)")
                     DispatchQueue.main.async {
                         let newFile = DownloadedFile(
                             id: UUID(),
@@ -81,11 +145,12 @@ struct ContentView: View {
                         self.isDownloading = false
                         self.downloadProgress = 0
                         self.urlString = ""
-                        self.showAlert(title: "Successo", message: "File scaricato correttamente!")
+                        self.showAlert(title: "Successo", message: "File scaricato: \(fileName)")
                         self.loadDownloadedFiles()
                     }
                 },
                 onError: { error in
+                    print("❌ Errore: \(error)")
                     DispatchQueue.main.async {
                         self.isDownloading = false
                         self.downloadProgress = 0
@@ -97,6 +162,7 @@ struct ContentView: View {
     }
     
     private func loadDownloadedFiles() {
+        print("📂 Caricamento file da Downloads...")
         let fileManager = FileManager.default
         guard let downloadsURL = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
             print("❌ Impossibile accedere a Downloads")
@@ -123,6 +189,7 @@ struct ContentView: View {
             }
             
             self.downloadedFiles = downloadedFilesList.sorted { $0.date > $1.date }
+            print("✅ Caricati \(downloadedFilesList.count) file")
         } catch {
             print("❌ Errore nel caricamento file: \(error)")
         }
@@ -185,56 +252,6 @@ struct ContentView: View {
         }
         .padding(.horizontal)
         .padding(.top, 20)
-    }
-    
-    private var downloadButton: some View {
-        Button(action: {
-            startDownload()
-        }) {
-            if isDownloading {
-                HStack(spacing: 12) {
-                    ProgressView(value: downloadProgress)
-                        .tint(.cyan)
-                        .frame(width: 60)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Scaricamento in corso...")
-                            .font(.system(.body, design: .rounded))
-                        Text("\(Int(downloadProgress * 100))%")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-                    
-                    Spacer()
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-            } else {
-                HStack(spacing: 12) {
-                    Image(systemName: "arrow.down.circle.fill")
-                    Text("Scarica")
-                        .font(.system(.body, design: .rounded))
-                        .fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-            }
-        }
-        .foregroundColor(.white)
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color.cyan,
-                    Color.blue
-                ]),
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        )
-        .cornerRadius(12)
-        .padding(.horizontal)
-        .disabled(urlString.isEmpty || isDownloading)
-        .opacity(urlString.isEmpty || isDownloading ? 0.6 : 1.0)
     }
     
     private var infoSection: some View {
@@ -315,12 +332,18 @@ struct ContentView: View {
     }
     
     private func startDownload() {
+        print("🔴 startDownload() chiamato")
+        print("URL String: '\(urlString)'")
+        print("Is Downloading: \(isDownloading)")
+        
         guard !urlString.isEmpty else {
+            print("❌ URL vuoto!")
             showAlert(title: "Errore", message: "Inserisci un URL")
             return
         }
         
         guard let url = URL(string: urlString) else {
+            print("❌ URL non valido: \(urlString)")
             showAlert(title: "URL Non Valido", message: "Inserisci un URL valido (es: https://...)")
             return
         }
@@ -331,9 +354,11 @@ struct ContentView: View {
         downloadProgress = 0
         
         if downloadManager == nil {
+            print("⚠️ DownloadManager non inizializzato, setup...")
             setupDownloadManager()
         }
         
+        print("📡 Invio richiesta download al manager...")
         downloadManager?.download(from: url)
     }
     
@@ -362,18 +387,28 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
     
     override init() {
         super.init()
+        print("🔧 Inizializzazione DownloadManager")
         let config = URLSessionConfiguration.background(withIdentifier: "com.unidownloader.background")
         config.waitsForConnectivity = true
         session = URLSession(configuration: config, delegate: self, delegateQueue: OperationQueue.main)
+        print("✅ URLSession configurato")
     }
     
     func download(from url: URL) {
-        print("🔄 Inizio download da: \(url.absoluteString)")
-        let downloadTask = session?.downloadTask(with: url)
+        print("🔄 download() chiamato con URL: \(url.absoluteString)")
+        guard let session = session else {
+            print("❌ Session non disponibile!")
+            delegate?.downloadDidFail(error: "Session non disponibile")
+            return
+        }
+        
+        let downloadTask = session.downloadTask(with: url)
         let download = Download(url: url)
         activeDownloads[url.absoluteString] = download
-        downloadTask?.resume()
-        print("✅ Download task avviato")
+        
+        print("📥 DownloadTask creato, avvio...")
+        downloadTask.resume()
+        print("✅ DownloadTask avviato - Task ID: \(downloadTask.taskIdentifier)")
     }
     
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
@@ -388,7 +423,6 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         let fileName = getFileName(from: url, response: downloadTask.response as? HTTPURLResponse)
         let fileManager = FileManager.default
         
-        // Salva in Downloads
         guard let downloadsURL = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
             print("❌ Errore: Impossibile accedere a Downloads")
             delegate?.downloadDidFail(error: "Errore: Impossibile accedere a Downloads")
@@ -398,7 +432,6 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         let destinationURL = downloadsURL.appendingPathComponent(fileName)
         
         do {
-            // Se il file esiste, aggiungi un numero al nome
             var finalURL = destinationURL
             var counter = 1
             while fileManager.fileExists(atPath: finalURL.path) {

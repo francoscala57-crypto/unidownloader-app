@@ -1,7 +1,6 @@
 import SwiftUI
 import Foundation
 import UniformTypeIdentifiers
-import UIKit
 
 struct ContentView: View {
     @State private var urlString = ""
